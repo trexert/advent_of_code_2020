@@ -1,9 +1,11 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::assert;
+use std::collections::HashMap;
+use std::collections::HashSet;
 
 struct Field {
-    name: String,
+    pub name: String,
     ranges: Vec<(usize, usize)>,
 }
 
@@ -33,7 +35,7 @@ impl Field {
     pub fn validate(&self, val: usize) -> bool {
         self.ranges
             .iter()
-            .any(|range| val > range.0 && val < range.1)
+            .any(|range| val >= range.0 && val <= range.1)
     }
 }
 
@@ -71,6 +73,7 @@ fn main() {
     }
 
     println!("part1: {}", part1(&fields, &tickets));
+    println!("part2: {}", part2(&fields, &tickets, &my_ticket));
 }
 
 fn part1(fields: &Vec<Field>, tickets: &Vec<Vec<usize>>) -> usize {
@@ -86,4 +89,67 @@ fn part1(fields: &Vec<Field>, tickets: &Vec<Vec<usize>>) -> usize {
             })
         })
         .sum()
+}
+
+fn part2(fields: &Vec<Field>, tickets: &Vec<Vec<usize>>, my_ticket: &Vec<usize>) -> usize {
+    let valid_tickets: Vec<_> = tickets
+        .iter()
+        .filter(|ticket| {
+            ticket
+                .iter()
+                .all(|val| fields.iter().any(|field| field.validate(*val)))
+        })
+        .collect();
+    let mut field_counts: HashMap<_, _> = fields
+        .iter()
+        .map(|field| (field.name.clone(), vec![0; fields.len()]))
+        .collect();
+    valid_tickets.iter().for_each(|ticket| {
+        ticket.iter().enumerate().for_each(|(i, val)| {
+            fields.iter().for_each(|field| {
+                if field.validate(*val) {
+                    field_counts.get_mut(&field.name).unwrap()[i] += 1;
+                }
+            })
+        })
+    });
+    let mut field_poses: Vec<_> = field_counts
+        .iter()
+        .map(|(name, counts)| {
+            let valid_positions: HashSet<_> = counts
+                .iter()
+                .enumerate()
+                .filter_map(|(i, count)| {
+                    if *count == valid_tickets.len() {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            (name, valid_positions)
+        })
+        .collect();
+
+    field_poses.sort_by_key(|(_name, poses)| poses.len());
+
+    let mut final_order = vec![""; fields.len()];
+    let mut used_poses: HashSet<usize> = HashSet::new();
+
+    for (field_name, posibilities) in field_poses {
+        let position = *posibilities.difference(&used_poses).next().unwrap();
+        used_poses.insert(position);
+        final_order[position] = field_name;
+    }
+
+    final_order
+        .iter()
+        .enumerate()
+        .fold(1, |acc, (i, field_name)| {
+            if field_name.starts_with("departure") {
+                acc * my_ticket[i]
+            } else {
+                acc
+            }
+        })
 }
